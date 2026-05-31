@@ -1,0 +1,38 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "description": "This project is related to the Softpro Innovation",
+  "keywords": [
+    "server"
+  ],
+  "homepage": "https://github.com/piyush20042025/Softpro-Innavation#readme",
+  "bugs": {
+    "url": "https://github.com/piyush20042025/Softpro-Innavation/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/piyush20042025/Softpro-Innavation.git"
+  },
+  "license": "ISC",
+  "author": "piyush pal",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "npm run dev",
+    "dev": "nodemon index.js",
+    "start": "nodemon index.js"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.3.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.2.1",
+    "multer": "^2.0.2",
+    "nodemon": "^3.1.11",
+    "razorpay": "^2.9.6"
+  }
+}

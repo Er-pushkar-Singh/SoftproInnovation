@@ -1,0 +1,21 @@
+  /* {products.map((product) => (
+              <div className='col-12 col-sm-6 col-lg-3 fade-up ' key={product._id}>
+               <div className="prod-img-area">
+                <div className="prod-placeholder">{product.name}</div>
+                <div className="prod-badge">{product.badge}</div>
+                <div className="prod-hover-bar">
+                  <button className='btn-cart' onClick={()=>setCartCount(c=>c+1)}>Add to cart</button>
+                  <button className='btn-wish'>hy</button>
+                </div>
+               </div>
+               <div className="prod-body">
+                <div className="prod-name">{product.name}</div>
+                <div className="prod-sub">{product.sub}</div>
+                <div className="prod-stars"><Stars n={product.stars}/></div>
+                <div className="prod-price-row">
+                  <div className="prod-price">{product.price}</div>
+                  <div className="prod-price">{product.price}</div>
+                </div>
+               </div>
+              </div>
+            ))} */
