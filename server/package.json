@@ -5,22 +5,23 @@
   "keywords": [
     "server"
   ],
-  "homepage": "https://github.com/piyush20042025/Softpro-Innavation#readme",
+  "homepage": "https://github.com/Er-pushkar-Singh/SoftproInnovation#readme",
   "bugs": {
-    "url": "https://github.com/piyush20042025/Softpro-Innavation/issues"
+    "url": "https://github.com/Er-pushkar-Singh/SoftproInnovation/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/piyush20042025/Softpro-Innavation.git"
+    "url": "git+https://github.com/Er-pushkar-Singh/SoftproInnovation.git"
   },
   "license": "ISC",
-  "author": "piyush pal",
+  "author": "Er-pushkar-Singh",
   "type": "commonjs",
   "main": "index.js",
   "scripts": {
     "test": "npm run dev",
     "dev": "nodemon index.js",
-    "start": "nodemon index.js"
+    "start": "node index.js",
+    "start:prod": "NODE_ENV=production node index.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -32,7 +33,13 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.2.1",
     "multer": "^2.0.2",
-    "nodemon": "^3.1.11",
     "razorpay": "^2.9.6"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  },
+  "engines": {
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
   }
 }
