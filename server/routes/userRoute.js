@@ -2,116 +2,348 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const verifyToken = require('../middleware/verifyToken');
+
+// Input validation helper
+const validateEmail = (email) => {
+    const emailRegex = /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/;
+    return emailRegex.test(email);
+};
+
+const validateMobile = (mobile) => {
+    const mobileRegex = /^[6-9]\d{9}$/;
+    return mobileRegex.test(mobile);
+};
 
 // user registration
 router.post('/register', async (req, res) => {
-    const { name, email, mobile, password } = req.body;
     try {
-        const isExist = await User.findOne({ email: req.body.email });
-        if (isExist) {
-            return res.json({ msg: "User Already Exist" });
+        const { name, email, mobile, password, confirmPassword } = req.body;
+
+        // Input validation
+        if (!name || !email || !mobile || !password || !confirmPassword) {
+            return res.status(400).json({ 
+                success: false,
+                msg: "Please provide all required fields" 
+            });
         }
 
-        const user = await new User({
-            name: name,
-            email: email,
-            mobile: mobile,
+        if (!validateEmail(email)) {
+            return res.status(400).json({ 
+                success: false,
+                msg: "Please provide a valid email" 
+            });
+        }
+
+        if (!validateMobile(mobile)) {
+            return res.status(400).json({ 
+                success: false,
+                msg: "Please provide a valid mobile number" 
+            });
+        }
+
+        if (password !== confirmPassword) {
+            return res.status(400).json({ 
+                success: false,
+                msg: "Passwords do not match" 
+            });
+        }
+
+        if (password.length < 8) {
+            return res.status(400).json({ 
+                success: false,
+                msg: "Password must be at least 8 characters long" 
+            });
+        }
+
+        const isExist = await User.findOne({ 
+            $or: [{ email: email }, { mobile: mobile }] 
+        });
+
+        if (isExist) {
+            return res.status(400).json({ 
+                success: false,
+                msg: "User with this email or mobile already exists" 
+            });
+        }
+
+        const user = new User({
+            name: name.trim(),
+            email: email.toLowerCase().trim(),
+            mobile: mobile.trim(),
             password: password
         });
-        user.save();
-        return res.json({ msg: "User Registered Successfully" });
+
+        await user.save();
+        
+        return res.status(201).json({ 
+            success: true,
+            msg: "User Registered Successfully" 
+        });
+    } catch (error) {
+        console.error('Registration error:', error);
+        return res.status(500).json({ 
+            success: false,
+            msg: "Failed to register user", 
+            error: error.message 
+        });
     }
-    catch (er) {
-        res.json({ msg: "Sorry User Not Registered", error: er });
-    }
-})
+});
 
 // user login
 router.post('/login', async (req, res) => {
-    const { email, password } = req.body;
     try {
-        const isUser = await User.findOne({ email: email });
-        if (!isUser) {
-            return res.json({ msg: "Wrong Email Address" });
-        }
-        if (isUser.password == password) {
-            const token = jwt.sign({ id: isUser._id }, process.env.JWT_SECRET, { expiresIn: '3d' });
-            return res.json({
-                msg: "User Login Successfully",
-                role: "User",
-                token: token,
-                id: isUser._id
-            }) 
-        }
-       return res.json({ msg: "Wrong Password" });
+        const { email, password } = req.body;
 
-    } catch (er) {
-        res.json({ msg: "Service Unavailable", error: er });
+        // Input validation
+        if (!email || !password) {
+            return res.status(400).json({ 
+                success: false,
+                msg: "Please provide email and password" 
+            });
+        }
+
+        if (!validateEmail(email)) {
+            return res.status(400).json({ 
+                success: false,
+                msg: "Please provide a valid email" 
+            });
+        }
+
+        const user = await User.findOne({ email: email.toLowerCase().trim() }).select('+password');
+
+        if (!user) {
+            return res.status(401).json({ 
+                success: false,
+                msg: "Invalid email or password" 
+            });
+        }
+
+        const isPasswordMatch = await user.matchPassword(password);
+
+        if (!isPasswordMatch) {
+            return res.status(401).json({ 
+                success: false,
+                msg: "Invalid email or password" 
+            });
+        }
+
+        const token = jwt.sign(
+            { id: user._id, email: user.email }, 
+            process.env.JWT_SECRET, 
+            { expiresIn: '3d' }
+        );
+
+        return res.status(200).json({
+            success: true,
+            msg: "User Login Successfully",
+            role: "User",
+            token: token,
+            id: user._id
+        });
+
+    } catch (error) {
+        console.error('Login error:', error);
+        return res.status(500).json({ 
+            success: false,
+            msg: "Service Unavailable", 
+            error: error.message 
+        });
     }
-})
+});
 
 // get user details
-router.get('/:id', async (req, res) => {
+router.get('/:id', verifyToken, async (req, res) => {
     try {
-        const data = await User.findById(req.params.id).lean();
-        res.json({ msg: "User details fetched successfully", data: data })
+        const data = await User.findById(req.params.id).select('-password').lean();
+        
+        if (!data) {
+            return res.status(404).json({ 
+                success: false,
+                msg: "User not found" 
+            });
+        }
+
+        return res.status(200).json({ 
+            success: true,
+            msg: "User details fetched successfully", 
+            data: data 
+        });
+    } catch (error) {
+        console.error('Fetch user error:', error);
+        return res.status(500).json({ 
+            success: false,
+            msg: "Failed to fetch user details", 
+            error: error.message 
+        });
     }
-    catch (er) {
-        res.json({ msg: "Failed to fetch user details", error: er })
-    }
-})
+});
 
 // update user details
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', verifyToken, async (req, res) => {
     try {
-        const data = await User.findByIdAndUpdate(req.params.id, req.body, { new: true });
-        res.json({ msg: "User details updated successfully", data: data })
-    }   
-    catch (er) {
-        res.json({ msg: "Failed to update user details", error: er })       
+        const { name, mobile } = req.body;
 
+        // Only allow updating specific fields
+        const allowedFields = { name, mobile };
+        Object.keys(allowedFields).forEach(key => 
+            allowedFields[key] === undefined && delete allowedFields[key]
+        );
+
+        if (Object.keys(allowedFields).length === 0) {
+            return res.status(400).json({ 
+                success: false,
+                msg: "No fields to update" 
+            });
+        }
+
+        if (name && name.length < 3) {
+            return res.status(400).json({ 
+                success: false,
+                msg: "Name must be at least 3 characters long" 
+            });
+        }
+
+        if (mobile && !validateMobile(mobile)) {
+            return res.status(400).json({ 
+                success: false,
+                msg: "Please provide a valid mobile number" 
+            });
+        }
+
+        const data = await User.findByIdAndUpdate(
+            req.params.id, 
+            allowedFields, 
+            { new: true, runValidators: true }
+        ).select('-password');
+
+        if (!data) {
+            return res.status(404).json({ 
+                success: false,
+                msg: "User not found" 
+            });
+        }
+
+        return res.status(200).json({ 
+            success: true,
+            msg: "User details updated successfully", 
+            data: data 
+        });
+    } catch (error) {
+        console.error('Update user error:', error);
+        return res.status(500).json({ 
+            success: false,
+            msg: "Failed to update user details", 
+            error: error.message 
+        });
     }
-})
+});
 
 // delete user
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', verifyToken, async (req, res) => {
     try {
         const data = await User.findByIdAndDelete(req.params.id);
-        res.json({ msg: "User deleted successfully" })
+
+        if (!data) {
+            return res.status(404).json({ 
+                success: false,
+                msg: "User not found" 
+            });
+        }
+
+        return res.status(200).json({ 
+            success: true,
+            msg: "User deleted successfully" 
+        });
+    } catch (error) {
+        console.error('Delete user error:', error);
+        return res.status(500).json({ 
+            success: false,
+            msg: "Failed to delete user", 
+            error: error.message 
+        });
     }
-    catch (er) {
-        res.json({ msg: "Failed to delete user", error: er })
-    }
-})
+});
 
 // change password
-router.patch('/change-password/:id', async (req, res) => {
+router.patch('/change-password/:id', verifyToken, async (req, res) => {
     try {
-        const { oldPassword, newPassword } = req.body;
-        const user = await User.findById(req.params.id);
+        const { oldPassword, newPassword, confirmPassword } = req.body;
+
+        if (!oldPassword || !newPassword || !confirmPassword) {
+            return res.status(400).json({ 
+                success: false,
+                msg: "Please provide old password and new password" 
+            });
+        }
+
+        if (newPassword !== confirmPassword) {
+            return res.status(400).json({ 
+                success: false,
+                msg: "New passwords do not match" 
+            });
+        }
+
+        if (newPassword.length < 8) {
+            return res.status(400).json({ 
+                success: false,
+                msg: "Password must be at least 8 characters long" 
+            });
+        }
+
+        const user = await User.findById(req.params.id).select('+password');
+
         if (!user) {
-            return res.json({ msg: "User not found" });
+            return res.status(404).json({ 
+                success: false,
+                msg: "User not found" 
+            });
         }
-        if (user.password !== oldPassword) {
-            return res.json({ msg: "Incorrect old password" });
+
+        const isOldPasswordMatch = await user.matchPassword(oldPassword);
+
+        if (!isOldPasswordMatch) {
+            return res.status(401).json({ 
+                success: false,
+                msg: "Incorrect old password" 
+            });
         }
+
         user.password = newPassword;
         await user.save();
-        res.json({ msg: "Password changed successfully" });
-    } catch (er) {
-        res.json({ msg: "Failed to change password", error: er });
+
+        return res.status(200).json({ 
+            success: true,
+            msg: "Password changed successfully" 
+        });
+    } catch (error) {
+        console.error('Change password error:', error);
+        return res.status(500).json({ 
+            success: false,
+            msg: "Failed to change password", 
+            error: error.message 
+        });
     }
 });
 
 // get all users (Admin only)
-router.get('/', async (req, res) => {
+router.get('/', verifyToken, async (req, res) => {
     try {
-        const data = await User.find({}).lean();
-        res.json({ msg: "All users fetched successfully", data: data })
+        const data = await User.find({}).select('-password').lean();
+        
+        return res.status(200).json({ 
+            success: true,
+            msg: "All users fetched successfully", 
+            data: data 
+        });
+    } catch (error) {
+        console.error('Fetch all users error:', error);
+        return res.status(500).json({ 
+            success: false,
+            msg: "Failed to fetch users", 
+            error: error.message 
+        });
     }
-    catch (er) {
-        res.json({ msg: "Failed to fetch users", error: er })
-    }
-})
+});
 
 module.exports = router;
