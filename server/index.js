@@ -1,62 +1,84 @@
-const express = require('express')
+const express = require('express');
 const cors = require('cors');
 const mongoDB = require('./config/db');
-const dotenv = require('dotenv')
+const dotenv = require('dotenv');
 const path = require('path');
 const helmet = require('helmet');
 const ratelimit = require('express-rate-limit');
+
 dotenv.config();
 
-const app = express()  // server create successfully
-//middlewares applied here
+// Validate required environment variables
+const requiredEnvVars = ['PORT', 'MONGO_URI', 'JWT_SECRET', 'RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET'];
+requiredEnvVars.forEach(varName => {
+    if (!process.env[varName]) {
+        console.error(`Error: Environment variable ${varName} is not defined`);
+        process.exit(1);
+    }
+});
+
+const app = express();
+
+// Security middlewares
+app.use(helmet());
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
+// Rate limiting for API endpoints
+const apiLimiter = ratelimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // 100 requests per 15 minutes
+    message: "Too many requests from this IP, please try again later",
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+app.use('/api/', apiLimiter);
+
+// Connect to MongoDB
 mongoDB();
 
-// app.use(express.urlencoded({ extended: true })); // IMPORTANT
+// Static folder for images
+app.use('/api/', express.static('./uploads'));
 
-// ✅ Static folder for images {api for serving stactic files}
-// const userlimit = ratelimit({
-//     windowMs: 60 * 1000, // 1 minute
-//     messages: "Too many requests from this IP, please try again after a minute",
-//     limit: 5
-// })
-
-app.use(helmet());
-app.use('/api/', express.static('./uploads'))
-// api's started
-app.use('/api/admin', require('./routes/adminRoute'))
-//api's ended
-
-//category api started
-app.use('/api/category', require('./routes/categoryRoute'))
-
-//product api
-app.use('/api/product', require('./routes/productRoute'))
-
-
-//user api
+// API Routes
+app.use('/api/admin', require('./routes/adminRoute'));
+app.use('/api/category', require('./routes/categoryRoute'));
+app.use('/api/product', require('./routes/productRoute'));
 app.use('/api/user', require('./routes/userRoute'));
+app.use('/api/cart', require('./routes/cartRoute'));
+app.use('/api/order/', require('./routes/orderRoute'));
+app.use('/api/address', require('./routes/addressRoute'));
+app.use('/api/complaint', require('./routes/complaintRoute'));
+app.use('/api/payment', require('./routes/paymentRoute'));
 
-//cart api
-app.use('/api/cart', require('./routes/cartRoute'))
-//ordee api
- 
-app.use('/api/order/', require('./routes/orderRoute'))
-//address api
-app.use('/api/address', require('./routes/addressRoute'))
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({
+        success: false,
+        msg: "Internal server error",
+        error: process.env.NODE_ENV === 'development' ? err.message : {}
+    });
+});
 
-//complaint api
-app.use('/api/complaint', require('./routes/complaintRoute'))
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        msg: "Route not found"
+    });
+});
 
-// api for payment
-app.use("/api/payment", require("./routes/paymentRoute"));
-//server started from here
+const PORT = process.env.PORT || 5000;
 
+app.listen(PORT, () => {
+    console.log(`Server started successfully on port ${PORT}`);
+});
 
-
-app.listen(process.env.PORT, () => {
-    console.log("Server started successfully");
-
-})
+// Graceful shutdown
+process.on('SIGINT', () => {
+    console.log('Server is shutting down gracefully');
+    process.exit(0);
+});
